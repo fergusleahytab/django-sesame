@@ -33,7 +33,9 @@ class AuthenticationMiddleware:
         # updating last login only for one-time tokens.
         update_last_login = False if hasattr(request, "session") else None
 
-        user = get_user(request, update_last_login)
+        user = get_user(
+            request, update_last_login, expires=settings.TOKEN_EXPIRES, max_age=settings.MAX_AGE
+        )
 
         # If django.contrib.sessions is enabled and the token is valid,
         # persist the login in session.

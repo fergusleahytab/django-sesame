@@ -18,26 +18,22 @@ TIMESTAMP_OFFSET = 1577836800  # 2020-01-01T00:00:00Z
 
 def pack_timestamp():
     """
-    When SESAME_MAX_AGE is enabled, encode the time in seconds since the epoch.
+    Encode the time in seconds since the epoch.
 
     Return bytes.
 
     """
-    if settings.MAX_AGE is None:
-        return b""
     timestamp = int(time.time()) - TIMESTAMP_OFFSET
     return struct.pack("!i", timestamp)
 
 
 def unpack_timestamp(data):
     """
-    When SESAME_MAX_AGE is enabled, extract the timestamp and calculate the age.
+    Extract the timestamp and calculate the age.
 
     Return an age in seconds or None and the remaining bytes.
 
     """
-    if settings.MAX_AGE is None:
-        return None, data
     # If data contains less than 4 bytes, this raises struct.error.
     (timestamp,), data = struct.unpack("!i", data[:4]), data[4:]
     return int(time.time()) - TIMESTAMP_OFFSET - timestamp, data
@@ -121,13 +117,13 @@ def sign(data):
     ).digest()
 
 
-def create_token(user, scope=""):
+def create_token(user, scope="", expires=False):
     """
     Create a v2 signed token for a user.
 
     """
     primary_key = packers.packer.pack_pk(user.pk)
-    timestamp = pack_timestamp()
+    timestamp = pack_timestamp() if expires else b""
     revocation_key = get_revocation_key(user)
 
     signature = sign(primary_key + timestamp + revocation_key + scope.encode())
@@ -139,13 +135,13 @@ def create_token(user, scope=""):
     return token.decode()
 
 
-def parse_token(token, get_user, scope="", max_age=None):
+def parse_token(token, get_user, scope="", expires=False, max_age=None):
     """
     Obtain a user from a v2 signed token.
 
     """
     token = token.encode()
-
+    age = None
     # Below, error messages should give a hint to developers debugging apps
     # but remain sufficiently generic for the common situation where tokens
     # get truncated by accident.
@@ -163,12 +159,16 @@ def parse_token(token, get_user, scope="", max_age=None):
     except Exception:
         logger.debug("Bad token: cannot extract primary key")
         return
-
-    try:
-        age, signature = unpack_timestamp(timestamp_and_signature)
-    except Exception:
-        logger.debug("Bad token: cannot extract timestamp")
-        return
+    
+    if expires:
+        logger.debug("Decoding token with timestamp")
+        try:
+            age, signature = unpack_timestamp(timestamp_and_signature)
+        except Exception:
+            logger.debug("Bad token: cannot extract timestamp")
+            return
+    else:
+        signature = timestamp_and_signature
 
     if len(signature) != settings.SIGNATURE_SIZE:
         logger.debug("Bad token: cannot extract signature")
@@ -185,15 +185,9 @@ def parse_token(token, get_user, scope="", max_age=None):
 
     # Check if token is expired. This is the fastest check.
 
-    if max_age is None:
-        max_age = settings.MAX_AGE
-    elif settings.MAX_AGE is None:
-        logger.warning(
-            "Ignoring max_age argument; "
-            "it isn't supported when SESAME_MAX_AGE = None"
-        )
-    elif isinstance(max_age, datetime.timedelta):
+    if expires and isinstance(max_age, datetime.timedelta):
         max_age = max_age.total_seconds()
+    
     if age is not None and age >= max_age:
         logger.debug("Expired token: age = %d seconds", age)
         return

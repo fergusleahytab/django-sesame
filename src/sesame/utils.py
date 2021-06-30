@@ -25,7 +25,7 @@ def get_query_string(user, scope=""):
     return "?" + urlencode(get_parameters(user, scope))
 
 
-def get_user(request_or_sesame, update_last_login=None, scope="", max_age=None):
+def get_user(request_or_sesame, update_last_login=None, scope="", expires=False, max_age=None):
     """
     Authenticate a user based on a token.
 
@@ -51,7 +51,7 @@ def get_user(request_or_sesame, update_last_login=None, scope="", max_age=None):
         if sesame is None:
             return None
 
-    user = authenticate(request, sesame=sesame, scope=scope, max_age=max_age)
+    user = authenticate(request, sesame=sesame, scope=scope, expires=expires, max_age=max_age)
     if user is None:
         return None
 

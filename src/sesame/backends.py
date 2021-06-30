@@ -13,7 +13,7 @@ class SesameBackendMixin:
 
     """
 
-    def authenticate(self, request, sesame, scope="", max_age=None):
+    def authenticate(self, request, sesame, scope="", expires=False, max_age=None):
         """
         Check the token and return the corresponding user.
 
@@ -22,7 +22,7 @@ class SesameBackendMixin:
         # issue #37 and Django's built-in backends include similar checks.
         if sesame is None:
             return
-        return parse_token(sesame, self.get_user, scope, max_age)
+        return parse_token(sesame, self.get_user, scope, expires, max_age)
 
 
 class ModelBackend(SesameBackendMixin, auth_backends.ModelBackend):

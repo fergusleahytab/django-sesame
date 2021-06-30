@@ -28,41 +28,37 @@ class TestTokensV2(CaptureLogMixin, CreateUserMixin, TestCase):
 
     # Test invalid tokens
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_invalid_base64_string(self):
         token = "deadbeef-"
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Bad token: cannot decode token")
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_truncated_token_in_primary_key(self):
-        token = create_token(self.user)
+        token = create_token(self.user, expires=True)
         # Primary key is in bytes 0 - 5 1/3
         token = token[:4]
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Bad token: cannot extract primary key")
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_truncated_token_in_timestamp(self):
-        token = create_token(self.user)
+        token = create_token(self.user, expires=True)
         # Timestamp is in bytes 5 1/3 - 10 2/3
         token = token[:8]
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Bad token: cannot extract timestamp")
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_truncated_token_in_signature(self):
-        token = create_token(self.user)
+        token = create_token(self.user, expires=True)
         # Signature is in bytes 10 2/3 - 24
         token = token[:12]
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Bad token: cannot extract signature")
 
@@ -75,12 +71,11 @@ class TestTokensV2(CaptureLogMixin, CreateUserMixin, TestCase):
         self.assertIsNone(user)
         self.assertLogsContain("Invalid token for user john in default scope")
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_random_token(self):
         token = "!@#$" * 6
-        self.assertEqual(len(token), len(create_token(self.user)))
+        self.assertEqual(len(token), len(create_token(self.user, expires=True)))
         self.assertFalse(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Bad token")
 
@@ -94,43 +89,29 @@ class TestTokensV2(CaptureLogMixin, CreateUserMixin, TestCase):
 
     # Test token expiry
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_valid_max_age_token(self):
-        token = create_token(self.user)
+        token = create_token(self.user, expires=True)
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertEqual(user, self.user)
         self.assertLogsContain("Valid token for user john in default scope")
 
-    @override_settings(SESAME_MAX_AGE=-300)
     def test_expired_max_age_token(self):
-        token = create_token(self.user)
+        token = create_token(self.user, expires=True)
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=-300)
         self.assertIsNone(user)
         self.assertLogsContain("Expired token")
 
-    @override_settings(SESAME_MAX_AGE=-300)
-    def test_extended_max_age_token(self):
-        token = create_token(self.user)
-        with override_settings(SESAME_MAX_AGE=300):
-            self.assertTrue(detect_token(token))
-            user = parse_token(token, self.get_user)
-        self.assertEqual(user, self.user)
-        self.assertLogsContain("Valid token for user john in default scope")
-
-    @override_settings(SESAME_MAX_AGE=300)
     def test_max_age_token_without_timestamp(self):
-        with override_settings(SESAME_MAX_AGE=None):
-            token = create_token(self.user)
+        token = create_token(self.user)
         self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user)
+        user = parse_token(token, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Bad token: cannot extract signature")
 
     def test_token_with_timestamp(self):
-        with override_settings(SESAME_MAX_AGE=300):
-            token = create_token(self.user)
+        token = create_token(self.user, expires=True)
         self.assertTrue(detect_token(token))
         user = parse_token(token, self.get_user)
         self.assertIsNone(user)
@@ -235,14 +216,6 @@ class TestTokensV2(CaptureLogMixin, CreateUserMixin, TestCase):
         self.assertEqual(user, self.user)
         self.assertLogsContain("Valid token for user john")
 
-    def test_custom_max_age_ignored(self):
-        token = create_token(self.user)
-        self.assertTrue(detect_token(token))
-        user = parse_token(token, self.get_user, max_age=-300)
-        self.assertEqual(user, self.user)
-        self.assertLogsContain("Ignoring max_age argument")
-        self.assertLogsContain("Valid token for user john")
-
     # Test custom primary key packer
 
     @override_settings(
@@ -289,9 +262,9 @@ class TestTokensV2(CaptureLogMixin, CreateUserMixin, TestCase):
         """Token signature changes if SESAME_MAX_AGE is enabled or disabled."""
         TIME = TIMESTAMP_OFFSET + (1 << 24)
         user1 = self.user
-        with override_settings(SESAME_MAX_AGE=300):
-            with unittest.mock.patch("time.time", return_value=TIME):
-                token1 = create_token(user1)
+
+        with unittest.mock.patch("time.time", return_value=TIME):
+            token1 = create_token(user1, expires=True)
 
         with override_settings(AUTH_USER_MODEL="tests.BigAutoUser"):
             user2 = self.create_user("jane", pk=(user1.pk << 32) + (1 << 24))
@@ -310,9 +283,9 @@ class TestTokensV2(CaptureLogMixin, CreateUserMixin, TestCase):
         self.assertIsNone(user)
         self.assertLogsContain("Invalid token for user jane")
 
-        with override_settings(SESAME_MAX_AGE=300):
-            with unittest.mock.patch("time.time", return_value=TIME + 1):
-                user = parse_token(token2, self.get_user)
+
+        with unittest.mock.patch("time.time", return_value=TIME + 1):
+            user = parse_token(token2, self.get_user, expires=True, max_age=300)
         self.assertIsNone(user)
         self.assertLogsContain("Invalid token for user john in default scope")
 

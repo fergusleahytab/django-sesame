@@ -13,10 +13,9 @@ class TestModelBackend(CaptureLogMixin, CreateUserMixin, TestCase):
         self.assertEqual(user, self.user)
         self.assertLogsContain("Valid token for user john in default scope")
 
-    @override_settings(SESAME_MAX_AGE=300)
     def test_token_with_max_age(self):
-        token = create_token(self.user)
-        user = ModelBackend().authenticate(request=None, sesame=token)
+        token = create_token(self.user, expires=True)
+        user = ModelBackend().authenticate(request=None, sesame=token, expires=True, max_age=300)
         self.assertEqual(user, self.user)
         self.assertLogsContain("Valid token for user john in default scope")
 
@@ -54,7 +53,7 @@ class TestModelBackend(CaptureLogMixin, CreateUserMixin, TestCase):
 
     @override_settings(SESAME_MAX_AGE=300)
     def test_token_with_max_age_override(self):
-        token = create_token(self.user)
-        user = ModelBackend().authenticate(request=None, sesame=token, max_age=-300)
+        token = create_token(self.user, expires=True)
+        user = ModelBackend().authenticate(request=None, sesame=token, expires=True, max_age=-300)
         self.assertIsNone(user)
         self.assertLogsContain("Expired token")

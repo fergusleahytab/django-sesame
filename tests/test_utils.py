@@ -71,10 +71,9 @@ class TestUtils(CaptureLogMixin, CreateUserMixin, TestCase):
         self.assertIsNone(get_user(request))
         self.assertLogsContain("Bad token")
 
-    @override_settings(SESAME_MAX_AGE=-10)
     def test_get_user_expired_token(self):
-        token = get_token(self.user)
-        self.assertIsNone(get_user(token))
+        token = get_token(self.user, expires=True)
+        self.assertIsNone(get_user(token, expires=True, max_age=-10))
         self.assertLogsContain("Expired token")
 
     def test_get_user_inactive_user(self):

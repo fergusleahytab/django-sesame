@@ -10,6 +10,7 @@ DEFAULTS = {
     # Generating URLs
     "TOKEN_NAME": "sesame",
     # Tokens lifecycle
+    "TOKEN_EXPIRES": False,
     "MAX_AGE": None,
     "ONE_TIME": False,
     "INVALIDATE_ON_PASSWORD_CHANGE": True,
@@ -24,6 +25,7 @@ DEFAULTS = {
     # Tokens v2
     "KEY": "",
     "SIGNATURE_SIZE": 10,
+
 }
 
 __all__ = list(DEFAULTS)
